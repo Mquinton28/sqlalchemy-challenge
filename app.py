@@ -1,8 +1,18 @@
 # Step two - Climate App
+import numpy as np
+import re
+import datetime as dt
+
+import sqlalchemy
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, func
+from sqlalchemy.sql import exists  
+
+from flask import Flask, jsonify
 
 #DB Connection
 engine = create_engine("sqlite:///../sqlalchemy-challenge/Resources/hawaii.sqlite")
-Base=automap_base()
 Base = automap_base()
 Base.prepare(engine, reflect=True)
 
@@ -12,7 +22,6 @@ Measurement = Base.classes.measurement
 session = Session(engine)
 
 # Now that you have completed your initial analysis, design a Flask API based on the queries that you have just developed.
-from flask import Flask
 app = Flask(__name__)
 
 # Create connection
@@ -40,23 +49,58 @@ def home():
 # Return the JSON representation of your dictionary.
 @app.route("/api/v1.0/precipitation")
 def precipitation():
+    session = Session(engine)
 
+    results = (session.query(Measurement.date, Measurement.tobs)
+    .orderby(Measurement.date))
 
+    percp_tobs = []
+    for row in results:
+        weather_dict = {}
+        weather_dict["date"] = row.date
+        weather_dict["tobs"] = row.tobs
+        percp_tobs.append(weather_dict)
 
+    return jsonify(percp_tobs)
 
 # /api/v1.0/stations
-
 # Return a JSON list of stations from the dataset.
+@app.route("/api/v1.0/stations")
+def stations():
+    session = Session(engine)
 
+    results = session.query(Station.name).all()
 
+    station_info = list(np.ravel(results))
+
+    return jsonify(station_info)
 
 # /api/v1.0/tobs
-
-
 # Query the dates and temperature observations of the most active station for the last year of data.
-
-
 # Return a JSON list of temperature observations (TOBS) for the previous year.
+@app.route("/api/v1.0/tobs")
+def tobs():
+    session = Session(engine)
+
+    recent_date = (session.query(Measurement.date).order_by(Measurement.date.desc()).first())
+
+    station_list = (session.query(Measurement.station, func.count(Measurement.station)).group_by(Measurement.station).order_by(func.count(Measurement.station).desc()).all())
+
+    hawaii_station = station_list[0][0]
+    print(hawaii_station)
+
+    results = (session.query(Measurement.station, Measurement.date, Measurement.tobs).filter(Measurement.date >= recent_date).filter(Measurement.station == hawaii_station).all())
+
+    #Jsonify
+    tobs = []
+    for result in results:
+        tobs_line = {}
+        tobs_line['Date'] = result[1]
+        tobs_line['Station'] = result[0]
+        tobs_line['Tempertature'] = int(result[2])
+        tobs.append(tobs_line)
+
+    return jsonify(tobs)
 
 
 
